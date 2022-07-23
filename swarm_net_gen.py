@@ -3,8 +3,7 @@ import graph
 import sys 
 import numpy as np
 
-UAV_NUM_MIN = 30
-UAV_NUM_MAX = 50
+UAV_NUM = 30
 DISTANCE_MIN = 5
 DISTANCE_MAX = 20
 DISTANCE_OPTIMAL = 10
@@ -12,6 +11,7 @@ DISTANCE_OPTIMAL = 10
 class GraphGen(object): 
     def __init__(self):
         self.g_type = 'barabasi_albert'
+        self.uav_num = UAV_NUM
         self.ngraph_train = 0
         self.ngraph_test = 0
         self.training_type = 'random'   #'degree'
@@ -19,17 +19,14 @@ class GraphGen(object):
         self.TestSet = graph.GraphSet()
 
 
-    def gen_graph(self, num_min, num_max):
-        max_n = num_max
-        min_n = num_min
-        cur_n = np.random.randint(max_n - min_n + 1) + min_n
+    def gen_graph(self, num):
         if self.g_type == 'small-world':
-            g = nx.connected_watts_strogatz_graph(n=cur_n, k=8, p=0.1)
+            g = nx.connected_watts_strogatz_graph(n=num, k=8, p=0.1)
         elif self.g_type == 'barabasi_albert':
-            g = nx.barabasi_albert_graph(n=cur_n, m=4)
+            g = nx.barabasi_albert_graph(n=num, m=4)
 
+        weight_node = {}
         if self.training_type == 'random':
-            weight_node = {}
             for node in g.nodes():
                 weight_node[node] = random.uniform(0,1)
         else:
@@ -50,12 +47,12 @@ class GraphGen(object):
         nx.set_edge_attributes(g, weight_edge, 'weight')
         return g
 
-    def gen_new_graphs(self, num_min, num_max):
+    def gen_new_graphs(self, num = UAV_NUM):
         print('\ngenerating new training graphs...')
         sys.stdout.flush()
         self.ClearTrainGraphs()
         for i in tqdm(range(1000)):
-            g = self.gen_graph(num_min, num_max)
+            g = self.gen_graph(num)
             self.InsertGraph(g, is_test=False)
     
     def InsertGraph(self,g,is_test):

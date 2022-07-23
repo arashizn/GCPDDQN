@@ -18,8 +18,7 @@ class Graph(object):
             self.adj_dict[x].append(y)
             self.adj_dict[y].append(x)
             self.edge_dict[i] = [x,y,w]
-            self.node_weight[i] = weight_node[i]
-            
+            self.node_weight[i] = weight_node[i]           
 
 class GraphSet(object):
 

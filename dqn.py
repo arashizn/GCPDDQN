@@ -1,8 +1,16 @@
+"""
+The DQN improvement: Prioritized Experience Replay (based on https://arxiv.org/abs/1511.05952)
+View more on my tutorial page: https://morvanzhou.github.io/tutorials/
+Using:
+Tensorflow: 1.0
+gym: 0.8.0
+"""
 import numpy as np
 import tensorflow as tf
 
 np.random.seed(1)
 tf.set_random_seed(1)
+inf = 2147483647/2
 
 
 class SumTree(object):
@@ -120,6 +128,7 @@ class DQNPrioritizedReplay:
             self,
             n_actions,
             n_features,
+            n_embedding,
             learning_rate=0.005,
             reward_decay=0.9,
             e_greedy=0.9,
@@ -133,6 +142,7 @@ class DQNPrioritizedReplay:
     ):
         self.n_actions = n_actions
         self.n_features = n_features
+        self.n_embedding = n_embedding
         self.lr = learning_rate
         self.gamma = reward_decay
         self.epsilon_max = e_greedy
@@ -168,11 +178,16 @@ class DQNPrioritizedReplay:
         self.cost_his = []
 
     def _build_net(self):
-        def build_layers(s, c_names, n_l1, w_initializer, b_initializer, trainable):
+        def build_layers(s, adj, c_names, n_embedding, n_l1, w_initializer, b_initializer, trainable):
+            with tf.variable_scope('l_emb'):
+                w_emb = tf.get_variable('w_emb', [self.n_features, self.n_embedding], initializer=w_initializer, collections=c_names,  trainable=trainable)
+                b_emb = tf.get_variable('b_emb', [1, self.n_embedding], initializer=b_initializer, collections=c_names,  trainable=trainable)
+                embedding_s = tf.nn.relu(tf.matmul(s, w_emb) + b_emb)
+
             with tf.variable_scope('l1'):
-                w1 = tf.get_variable('w1', [self.n_features, n_l1], initializer=w_initializer, collections=c_names, trainable=trainable)
+                w1 = tf.get_variable('w1', [self.n_embeding, n_l1], initializer=w_initializer, collections=c_names, trainable=trainable)
                 b1 = tf.get_variable('b1', [1, n_l1], initializer=b_initializer, collections=c_names,  trainable=trainable)
-                l1 = tf.nn.relu(tf.matmul(s, w1) + b1)
+                l1 = tf.nn.relu(tf.matmul(embedding_s, w1) + b1)
 
             with tf.variable_scope('l2'):
                 w2 = tf.get_variable('w2', [n_l1, self.n_actions], initializer=w_initializer, collections=c_names,  trainable=trainable)
@@ -181,7 +196,8 @@ class DQNPrioritizedReplay:
             return out
 
         # ------------------ build evaluate_net ------------------
-        self.s = tf.placeholder(tf.float32, [None, self.n_features], name='s')  # input
+        self.s = tf.placeholder(tf.float32, [self.n_actions, self.n_features], name='s')  # input_state_feature
+        self.adj = tf.sparse_placeholder(tf.float32, [self.n_actions, self.n_actions], name='adj')  # input_state_adj
         self.q_target = tf.placeholder(tf.float32, [None, self.n_actions], name='Q_target')  # for calculating loss
         if self.prioritized:
             self.ISWeights = tf.placeholder(tf.float32, [None, 1], name='IS_weights')
@@ -219,10 +235,13 @@ class DQNPrioritizedReplay:
             self.memory[index, :] = transition
             self.memory_counter += 1
 
-    def choose_action(self, observation):
+    def choose_action(self, observation, steps):
         observation = observation[np.newaxis, :]
+        remain_node = 
         if np.random.uniform() < self.epsilon:
             actions_value = self.sess.run(self.q_eval, feed_dict={self.s: observation})
+            for node in steps:
+                actions_value[node] = -inf
             action = np.argmax(actions_value)
         else:
             action = np.random.randint(0, self.n_actions)
@@ -273,6 +292,3 @@ class DQNPrioritizedReplay:
         plt.ylabel('Cost')
         plt.xlabel('training steps')
         plt.show()
-    
-if __name__ == '__main__':
-     DQN = DeepQNetwork(3,4, output_graph=True)
