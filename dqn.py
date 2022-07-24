@@ -128,7 +128,6 @@ class DQNPrioritizedReplay:
             self,
             n_actions,
             n_features,
-            n_embedding,
             learning_rate=0.005,
             reward_decay=0.9,
             e_greedy=0.9,
@@ -142,7 +141,6 @@ class DQNPrioritizedReplay:
     ):
         self.n_actions = n_actions
         self.n_features = n_features
-        self.n_embedding = n_embedding
         self.lr = learning_rate
         self.gamma = reward_decay
         self.epsilon_max = e_greedy
@@ -180,12 +178,13 @@ class DQNPrioritizedReplay:
     def _build_net(self):
         def build_layers(s, adj, c_names, n_embedding, n_l1, w_initializer, b_initializer, trainable):
             with tf.variable_scope('l_emb'):
-                w_emb = tf.get_variable('w_emb', [self.n_features, self.n_embedding], initializer=w_initializer, collections=c_names,  trainable=trainable)
-                b_emb = tf.get_variable('b_emb', [1, self.n_embedding], initializer=b_initializer, collections=c_names,  trainable=trainable)
-                embedding_s = tf.nn.relu(tf.matmul(s, w_emb) + b_emb)
+                w_emb = tf.get_variable('w_emb', [self.n_features, n_embedding], initializer=w_initializer, collections=c_names,  trainable=trainable)
+                b_emb = tf.get_variable('b_emb', [1, n_embedding], initializer=b_initializer, collections=c_names,  trainable=trainable)
+                output = tf.matmul(s,w_emb)
+                embedding_s = tf.nn.relu(tf.sparse.sparse_dense_matmul(adj, output) + b_emb)
 
             with tf.variable_scope('l1'):
-                w1 = tf.get_variable('w1', [self.n_embeding, n_l1], initializer=w_initializer, collections=c_names, trainable=trainable)
+                w1 = tf.get_variable('w1', [n_embeding, n_l1], initializer=w_initializer, collections=c_names, trainable=trainable)
                 b1 = tf.get_variable('b1', [1, n_l1], initializer=b_initializer, collections=c_names,  trainable=trainable)
                 l1 = tf.nn.relu(tf.matmul(embedding_s, w1) + b1)
 
@@ -197,7 +196,7 @@ class DQNPrioritizedReplay:
 
         # ------------------ build evaluate_net ------------------
         self.s = tf.placeholder(tf.float32, [self.n_actions, self.n_features], name='s')  # input_state_feature
-        self.adj = tf.sparse_placeholder(tf.float32, [self.n_actions, self.n_actions], name='adj')  # input_state_adj
+        self.adj = tf.sparse.placeholder(tf.float32, [self.n_actions, self.n_actions], name='adj')  # input_adj_matrix
         self.q_target = tf.placeholder(tf.float32, [None, self.n_actions], name='Q_target')  # for calculating loss
         if self.prioritized:
             self.ISWeights = tf.placeholder(tf.float32, [None, 1], name='IS_weights')
@@ -206,7 +205,7 @@ class DQNPrioritizedReplay:
                 ['eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES], 20, \
                 tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1)  # config of layers
 
-            self.q_eval = build_layers(self.s, c_names, n_l1, w_initializer, b_initializer, True)
+            self.q_eval = build_layers(self.s, self.adj, c_names, n_embedding, n_l1, w_initializer, b_initializer, True)
 
         with tf.variable_scope('loss'):
             if self.prioritized:
@@ -218,10 +217,11 @@ class DQNPrioritizedReplay:
             self._train_op = tf.train.RMSPropOptimizer(self.lr).minimize(self.loss)
 
         # ------------------ build target_net ------------------
-        self.s_ = tf.placeholder(tf.float32, [None, self.n_features], name='s_')    # input
+        self.s_ = tf.placeholder(tf.float32, [self.n_actions, self.n_features], name='s_')    # input
+        self.adj_ = tf.sparse.placeholder(tf.float32, [self.n_actions, self.n_actions], name='adj_')  # input_adj_matrix
         with tf.variable_scope('target_net'):
             c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
-            self.q_next = build_layers(self.s_, c_names, n_l1, w_initializer, b_initializer, False)
+            self.q_next = build_layers(self.s_, self.adj_, c_names, n_embedding, n_l1, w_initializer, b_initializer, False)
 
     def store_transition(self, s, a, r, s_):
         if self.prioritized:    # prioritized replay
@@ -235,16 +235,28 @@ class DQNPrioritizedReplay:
             self.memory[index, :] = transition
             self.memory_counter += 1
 
+    def laplacian_martix_sys_normalized(self, s):
+        adj_matrix = np.array(nx.adjacency_matrix(s).todense())
+        #compute L=D^-0.5 * (A+I) * D^-0.5
+        adj_matrix = adj_matrix + np.eye(adj_matrix.shape[0])
+        degree = np.array(adj_matrix.sum(1))
+        d_hat = np.diag(np.power(degree, -0.5).flatten())
+        norm_adj = d_hat.dot(adj_matrix).dot(d_hat)
+        return norm_adj
+
+
     def choose_action(self, observation, steps):
-        observation = observation[np.newaxis, :]
-        remain_node = 
+        graph = observation.copy()
+        remain_node = graph.nodes() #obtain the avaiable node of the residual net
+        state_feature = nx.get_node_attributes(graph,'weight').values()# feature matrix of the residual net
+        adj = laplacian_martix_sys_normalized(graph)
         if np.random.uniform() < self.epsilon:
-            actions_value = self.sess.run(self.q_eval, feed_dict={self.s: observation})
+            actions_value = self.sess.run(self.q_eval, feed_dict={self.s: state_feature, self.adj: adj})
             for node in steps:
                 actions_value[node] = -inf
             action = np.argmax(actions_value)
         else:
-            action = np.random.randint(0, self.n_actions)
+            action = random.choice(remain_node)
         return action
 
     def learn(self):

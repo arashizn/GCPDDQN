@@ -18,11 +18,11 @@ nx.set_node_attributes(g, color_node, 'color')
 
 #edges = zip(*g.edges())
 print(nx.get_node_attributes(g,'weight'))
-print(nx.get_edge_attributes(g,'weight'))
-print(nx.get_node_attributes(g,'color'))
-print(np.array(nx.adjacency_matrix(g).todense()))
+#print(nx.get_edge_attributes(g,'weight'))
+#print(nx.get_node_attributes(g,'color'))
+#print(np.array(nx.adjacency_matrix(g).todense()))
 
 
 #g2 = nx.barabasi_albert_graph(n=10, m=4)
 #state_s.append(g2)
-#print( state_s[0])
+#print( state_s[0].nodes())

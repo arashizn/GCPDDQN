@@ -33,7 +33,8 @@ with tf.variable_scope('DQN_with_prioritized_replay'):
     )
 sess.run(tf.global_variables_initializer())
 
-
+def fillmemory():
+    
 def train(RL):
     total_steps = 0
     steps = []
