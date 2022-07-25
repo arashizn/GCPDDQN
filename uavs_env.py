@@ -15,14 +15,21 @@ class UAVSEnv(object):
         self.state_seq.clear()
         self.act_seq.clear()
         self.reward_seq.clear()
+        return graph_init
 
     def step(self, state, act_node):
-        net = state
+        net = state.copy()
         self.state_seq.append(net)
         self.act_seq.append(act_node)
-        residual_net = net.remove_node(act_node)
-        reward = getreward(net, residual_net)
+        net.remove_node(act_node)
+        residual_net = net.copy()
+        reward = self.getreward(state, residual_net)
         self.reward_seq.append(reward)
+        if self.isterminal(residual_net):
+            return reward, residual_net, True
+        else:
+            return reward, residual_net, False
+
 
     def isterminal(self, state):
         edges_remain = state.edges()
@@ -32,16 +39,18 @@ class UAVSEnv(object):
             return False
 
     def getreward(self, net, residual_net):
-        net_score = COOPScore(net)
-        residual_net_score = COOPScore(residual_net)
+        net = net.copy()
+        residual_net = residual_net.copy()
+        net_score = self.COOPScore(net)
+        residual_net_score = self.COOPScore(residual_net)
         reward = net_score - residual_net_score
         return reward
 
     def COOPScore(self, net):
-        node_score = sum(nx.get_edge_attributes(net,'weight').values())
+        node_score = sum(list(nx.get_edge_attributes(net,'weight').values()))
         node_neigh_score = 0
         for u,v in net.edges():
-            node_neigh_score = node_neigh_score + (graph.nodes[u]+graph.nodes[v])*(2**graph.edges[u,v]['weight'])
+            node_neigh_score = node_neigh_score + (net.nodes[u]['weight']+net.nodes[v]['weight'])*(2**net.edges[u,v]['weight'])
         coopscore = node_score + node_neigh_score
         return coopscore
 

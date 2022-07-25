@@ -1,9 +1,12 @@
 import networkx as nx
-import graph
+from graph import GraphSet
+from graph import Graph
 import sys 
 import numpy as np
+from tqdm import tqdm
+import random
+import math
 
-UAV_NUM = 30
 DISTANCE_MIN = 5
 DISTANCE_MAX = 20
 DISTANCE_OPTIMAL = 10
@@ -11,12 +14,11 @@ DISTANCE_OPTIMAL = 10
 class GraphGen(object): 
     def __init__(self):
         self.g_type = 'barabasi_albert'
-        self.uav_num = UAV_NUM
         self.ngraph_train = 0
         self.ngraph_test = 0
         self.training_type = 'random'   #'degree'
-        self.TrainSet = graph.GraphSet()
-        self.TestSet = graph.GraphSet()
+        self.TrainSet = GraphSet()
+        self.TestSet = GraphSet()
 
 
     def gen_graph(self, num):
@@ -42,28 +44,28 @@ class GraphGen(object):
             if distance_edge <= DISTANCE_OPTIMAL:
                 weight_edge[u, v] = 1
             else:
-                weight_edge[u, v] = exp(-((distance_edge - DISTANCE_OPTIMAL)/5)) #weight of edge according to the distance between uav nodes
+                weight_edge[u, v] = math.exp(-((distance_edge - DISTANCE_OPTIMAL)/5)) #weight of edge according to the distance between uav nodes
         nx.set_node_attributes(g, weight_node, 'weight')
         nx.set_edge_attributes(g, weight_edge, 'weight')
         return g
 
-    def gen_new_graphs(self, num = UAV_NUM):
+    def gen_new_graphs(self, num):
         print('\ngenerating new training graphs...')
         sys.stdout.flush()
         self.ClearTrainGraphs()
         for i in tqdm(range(1000)):
             g = self.gen_graph(num)
-            self.InsertGraph(g, is_test=False)
+            self.insertgraph(g, is_test=False)
     
-    def InsertGraph(self,g,is_test):
+    def insertgraph(self,g,is_test):
         if is_test:
             t = self.ngraph_test
             self.ngraph_test += 1
-            self.TestSet.InsertGraph(t, self.GenNetwork(g))
+            self.TestSet.InsertGraph(t, g)
         else:
             t = self.ngraph_train
             self.ngraph_train += 1
-            self.TrainSet.InsertGraph(t, self.GenNetwork(g))
+            self.TrainSet.InsertGraph(t, g)
 
     def GenNetwork(self, g):    
         nodes = g.nodes()
@@ -88,7 +90,7 @@ class GraphGen(object):
             weight_edge = np.array([0])
 
         
-        return graph.graph_init(len(nodes), len(edges), edges_from, edges_to, weight_node, weight_edge)
+        return Graph.graph_init(len(nodes), len(edges), edges_from, edges_to, weight_node, weight_edge)
     
     def ClearTrainGraphs(self):
         self.ngraph_train = 0

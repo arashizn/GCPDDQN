@@ -29,7 +29,7 @@ class GraphSet(object):
         self.graphset[graphid] = graph
 
     def Sample(self):
-        sampleid = random.randint() % len(self.graphset)
+        sampleid = random.choice(list(self.graphset.keys())) 
         samplegraph = self.graphset[sampleid]
         return samplegraph
 
