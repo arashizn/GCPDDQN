@@ -151,7 +151,7 @@ class DQNPrioritizedReplay:
         self.memory_size = memory_size
         self.batch_size = batch_size
         self.epsilon_increment = e_greedy_increment
-        self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max
+        self.epsilon = 0 if e_greedy_increment is None else self.epsilon_max
 
         self.prioritized = prioritized    # decide to use double q or not
 
@@ -165,7 +165,7 @@ class DQNPrioritizedReplay:
         if self.prioritized:
             self.memory = Memory(capacity=memory_size)
         else:
-            self.memory = np.zeros((self.memory_size, 3))
+            self.memory = np.zeros((self.memory_size, 3),dtype = object)
 
         if sess is None:
             self.sess = tf.Session()
@@ -184,7 +184,7 @@ class DQNPrioritizedReplay:
                 w_emb = tf.get_variable('w_emb', [self.n_features, self.n_embedding], initializer=w_initializer, collections=c_names,  trainable=trainable)
                 b_emb = tf.get_variable('b_emb', [1, self.n_embedding], initializer=b_initializer, collections=c_names,  trainable=trainable)
                 output = tf.matmul(s,w_emb)
-                embedding_s = tf.nn.relu(tf.sparse.sparse_dense_matmul(adj, output) + b_emb)
+                embedding_s = tf.nn.relu(tf.matmul(adj, output) + b_emb)
 
             with tf.variable_scope('l1'):
                 w1 = tf.get_variable('w1', [self.n_embedding, n_l1], initializer=w_initializer, collections=c_names, trainable=trainable)
@@ -198,8 +198,8 @@ class DQNPrioritizedReplay:
             return out
 
         # ------------------ build evaluate_net ------------------
-        self.s = tf.placeholder(tf.float32, [self.n_actions, self.n_features], name='s')  # input_state_feature
-        self.adj = tf.sparse.placeholder(tf.float32, [self.n_actions, self.n_actions], name='adj')  # input_adj_matrix
+        self.s = tf.placeholder(tf.float32, [None, self.n_features], name='s')  # input_state_feature
+        self.adj = tf.placeholder(tf.float32, [None, None], name='adj')  # input_adj_matrix
         self.q_target = tf.placeholder(tf.float32, [None, self.n_actions], name='Q_target')  # for calculating loss
         if self.prioritized:
             self.ISWeights = tf.placeholder(tf.float32, [None, 1], name='IS_weights')
@@ -220,8 +220,8 @@ class DQNPrioritizedReplay:
             self._train_op = tf.train.RMSPropOptimizer(self.lr).minimize(self.loss)
 
         # ------------------ build target_net ------------------
-        self.s_ = tf.placeholder(tf.float32, [self.n_actions, self.n_features], name='s_')    # input
-        self.adj_ = tf.sparse.placeholder(tf.float32, [self.n_actions, self.n_actions], name='adj_')  # input_adj_matrix
+        self.s_ = tf.placeholder(tf.float32, [None, self.n_features], name='s_')    # input
+        self.adj_ = tf.placeholder(tf.float32, [None, None], name='adj_')  # input_adj_matrix
         with tf.variable_scope('target_net'):
             c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
             self.q_next = build_layers(self.s_, self.adj_, c_names, n_l1, w_initializer, b_initializer, False)
@@ -231,6 +231,7 @@ class DQNPrioritizedReplay:
         transition.append(s)
         transition.append([a, r])
         transition.append(s_)
+        transitionn = np.array(transition, dtype=object)
         if self.prioritized:    # prioritized replay
             #transition = np.hstack((s, [a, r], s_))
             self.memory.store(transition)    # have high priority for newly arrived transition
@@ -239,7 +240,7 @@ class DQNPrioritizedReplay:
                 self.memory_counter = 0
             #transition = np.hstack((s, [a, r], s_))
             index = self.memory_counter % self.memory_size
-            self.memory[index, :] = transition
+            self.memory[index, :] = transitionn
             self.memory_counter += 1
 
     def laplacian_martix_sys_normalized(self, s):
@@ -255,7 +256,7 @@ class DQNPrioritizedReplay:
     def choose_action(self, observation, steps):
         graph = observation.copy()
         remain_node = graph.nodes() #obtain the avaiable node of the residual net
-        state_feature = nx.get_node_attributes(graph,'weight').values()# feature matrix of the residual net
+        state_feature = np.transpose(np.matrix(list(nx.get_node_attributes(graph,'weight').values())))# feature matrix of the residual net
         adj = self.laplacian_martix_sys_normalized(graph)
         if np.random.uniform() < self.epsilon:
             actions_value = self.sess.run(self.q_eval, feed_dict={self.s: state_feature, self.adj: adj})
@@ -277,33 +278,50 @@ class DQNPrioritizedReplay:
             sample_index = np.random.choice(self.memory_size, size=self.batch_size)
             batch_memory = self.memory[sample_index, :]
 
-        q_next, q_eval = self.sess.run(
-                [self.q_next, self.q_eval],
-                feed_dict={self.s_: batch_memory[:, -self.n_features:],
-                           self.s: batch_memory[:, :self.n_features]})
+        batch_s = batch_memory[:, 0]
+        batch_s_ = batch_memory[:,2]
+        for i in range(self.batch_size):
+            s = batch_s[i]
+            s_ = batch_s_[i]
+            state_feature = np.transpose(np.matrix((list(nx.get_node_attributes(s,'weight').values()))))
+            state_feature_ = np.transpose(np.matrix(list(nx.get_node_attributes(s_,'weight').values())))
+            adj = self.laplacian_martix_sys_normalized(s)
+            adj_ = self.laplacian_martix_sys_normalized(s_)
 
-        q_target = q_eval.copy()
-        batch_index = np.arange(self.batch_size, dtype=np.int32)
-        eval_act_index = batch_memory[:, self.n_features].astype(int)
-        reward = batch_memory[:, self.n_features + 1]
+            q_next, q_eval = self.sess.run(
+                    [self.q_next, self.q_eval],
+                    feed_dict={self.s_: state_feature_, self.adj_: adj_, 
+                            self.s: state_feature, self.adj: adj})
 
-        q_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
+            q_target = q_eval.copy()
+            batch_index = np.arange(self.batch_size, dtype=np.int32)
+            eval_act_index = batch_memory[:,1][0].astype(int)
+            reward = batch_memory[:,1][1]
+
+            q_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
+
+            if self.prioritized:
+                _, abs_errors, self.cost = self.sess.run([self._train_op, self.abs_errors, self.loss],
+                                            feed_dict={self.s: state_feature,
+                                                        self.adj: adj,
+                                                        self.q_target: q_target,
+                                                        self.ISWeights: ISWeights})
+            else:
+                _, self.cost = self.sess.run([self._train_op, self.loss],
+                                            feed_dict={self.s: state_feature,
+                                                        self.adj: adj,
+                                                        self.q_target: q_target})
+            cost += self.cost
+
+        self.cost_his.append(cost)
 
         if self.prioritized:
-            _, abs_errors, self.cost = self.sess.run([self._train_op, self.abs_errors, self.loss],
-                                         feed_dict={self.s: batch_memory[:, :self.n_features],
-                                                    self.q_target: q_target,
-                                                    self.ISWeights: ISWeights})
             self.memory.batch_update(tree_idx, abs_errors)     # update priority
-        else:
-            _, self.cost = self.sess.run([self._train_op, self.loss],
-                                         feed_dict={self.s: batch_memory[:, :self.n_features],
-                                                    self.q_target: q_target})
-
-        self.cost_his.append(self.cost)
 
         self.epsilon = self.epsilon + self.epsilon_increment if self.epsilon < self.epsilon_max else self.epsilon_max
         self.learn_step_counter += 1
+
+        
 
     def plot_cost(self):
         import matplotlib.pyplot as plt

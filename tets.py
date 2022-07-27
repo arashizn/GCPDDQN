@@ -2,6 +2,7 @@ import networkx as nx
 import numpy as np
 
 state_s = []
+st = np.zeros((2,3))
 g = nx.barabasi_albert_graph(n=10, m=4)
 weight_node = {}
 for node in g.nodes():
@@ -16,20 +17,22 @@ nx.set_node_attributes(g, weight_node, 'weight')
 nx.set_edge_attributes(g, weight_edge, 'weight')
 nx.set_node_attributes(g, color_node, 'color')
 state_s.append(g)
+#print(np.array(nx.adjacency_matrix(g).todense()))
 g.remove_node(1)
 g1 = g.copy()
 
 state_s.append([1,2])
 state_s.append(g1)
-state_s.append(list(state_s))
 #edges = zip(*g.edges())
 #print(nx.get_node_attributes(g,'weight'))
-print(list(nx.get_edge_attributes(g,'weight').values()))
+print(np.array(nx.get_edge_attributes(g,'weight').values()))
 #print(nx.get_node_attributes(g,'color'))
-#print(np.array(nx.adjacency_matrix(g).todense()))
+#print(np.array(nx.adjacency_matrix(g1).todense()))
 
-
+#np = np.random.rand(4,3)
+#np1 = {0: 0, 1:11,2:22,3:33}
 #g2 = nx.barabasi_albert_graph(n=10, m=4)
 #state_s.append(g2)
 #print( state_s[0].nodes())
-print(state_s)
+#s = np.array(state_s, dtype=object)
+#print(s[0])
