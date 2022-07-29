@@ -74,8 +74,8 @@ def train(RL):
                    
     return np.vstack((episodes, steps))
 
-his_natural = train(RL_natural)
 his_prio = train(RL_prio)
+his_natural = train(RL_natural)
 
 # compare based on first success
 plt.plot(his_natural[0, :], his_natural[1, :] - his_natural[1, 0], c='b', label='natural DQN')

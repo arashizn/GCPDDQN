@@ -103,7 +103,7 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
         self.tree.add(max_p, transition)   # set the max p for new p
 
     def sample(self, n):
-        b_idx, b_memory, ISWeights = np.empty((n,), dtype=np.int32), np.empty((n, self.tree.data[0].size)), np.empty((n, 1))
+        b_idx, b_memory, ISWeights = np.empty((n,), dtype=np.int32), np.empty((n, self.tree.data[0].size),dtype = object), np.empty((n, 1))
         pri_seg = self.tree.total_p / n       # priority segment
         self.beta = np.min([1., self.beta + self.beta_increment_per_sampling])  # max = 1
 
@@ -185,11 +185,12 @@ class DQNPrioritizedReplay:
                 b_emb = tf.get_variable('b_emb', [1, self.n_embedding], initializer=b_initializer, collections=c_names,  trainable=trainable)
                 output = tf.matmul(s,w_emb)
                 embedding_s = tf.nn.relu(tf.matmul(adj, output) + b_emb)
+                embedding_avg_s = tf.expand_dims(tf.reduce_mean(embedding_s, 0),0)
 
             with tf.variable_scope('l1'):
                 w1 = tf.get_variable('w1', [self.n_embedding, n_l1], initializer=w_initializer, collections=c_names, trainable=trainable)
                 b1 = tf.get_variable('b1', [1, n_l1], initializer=b_initializer, collections=c_names,  trainable=trainable)
-                l1 = tf.nn.relu(tf.matmul(embedding_s, w1) + b1)
+                l1 = tf.nn.relu(tf.matmul(embedding_avg_s, w1) + b1)
 
             with tf.variable_scope('l2'):
                 w2 = tf.get_variable('w2', [n_l1, self.n_actions], initializer=w_initializer, collections=c_names,  trainable=trainable)
@@ -234,7 +235,7 @@ class DQNPrioritizedReplay:
         transitionn = np.array(transition, dtype=object)
         if self.prioritized:    # prioritized replay
             #transition = np.hstack((s, [a, r], s_))
-            self.memory.store(transition)    # have high priority for newly arrived transition
+            self.memory.store(transitionn)    # have high priority for newly arrived transition
         else:       # random replay
             if not hasattr(self, 'memory_counter'):
                 self.memory_counter = 0
@@ -261,7 +262,7 @@ class DQNPrioritizedReplay:
         if np.random.uniform() < self.epsilon:
             actions_value = self.sess.run(self.q_eval, feed_dict={self.s: state_feature, self.adj: adj})
             for node in steps:
-                actions_value[node] = -inf
+                actions_value[0][node] = -inf
             action = np.argmax(actions_value)
         else:
             action = random.choice(list(remain_node.keys()))
@@ -280,6 +281,7 @@ class DQNPrioritizedReplay:
 
         batch_s = batch_memory[:, 0]
         batch_s_ = batch_memory[:,2]
+        cost = 0
         for i in range(self.batch_size):
             s = batch_s[i]
             s_ = batch_s_[i]
@@ -294,11 +296,11 @@ class DQNPrioritizedReplay:
                             self.s: state_feature, self.adj: adj})
 
             q_target = q_eval.copy()
-            batch_index = np.arange(self.batch_size, dtype=np.int32)
-            eval_act_index = batch_memory[:,1][0].astype(int)
-            reward = batch_memory[:,1][1]
+            #batch_index = np.arange(self.batch_size, dtype=np.int32)
+            eval_act_index = batch_memory[i,1][0]
+            reward = batch_memory[i,1][1]
 
-            q_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
+            q_target[0][eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
 
             if self.prioritized:
                 _, abs_errors, self.cost = self.sess.run([self._train_op, self.abs_errors, self.loss],
@@ -311,7 +313,7 @@ class DQNPrioritizedReplay:
                                             feed_dict={self.s: state_feature,
                                                         self.adj: adj,
                                                         self.q_target: q_target})
-            cost += self.cost
+            cost  = cost + self.cost
 
         self.cost_his.append(cost)
 
