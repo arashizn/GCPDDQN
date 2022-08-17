@@ -17,7 +17,7 @@ import numpy as np
 UAV_NUM = 30
 MEMORY_SIZE = 5000
 EMBEDDING_SIZE = 32
-EPISODE = 2000
+EPISODE = 1500
 
 env = UAVSEnv()
 graphgen = GraphGen()
@@ -53,33 +53,43 @@ def train(RL):
         action_list = []
         g_sample= TrainSet.Sample()
         observation = env.state0(g_sample)
+        ep_reward = 0
+        j = 0
+        while j < UAV_NUM:
+            action = RL.choose_action(observation, action_list)
+            action_list.append(action)
+            reward, observation_, isterminal = env.step(g_sample, observation, action)
+            RL.store_transition(observation, action, reward, observation_)
 
-        while True:
-                action = RL.choose_action(observation, action_list)
-                action_list.append(action)
-                reward, observation_, isterminal = env.step(observation, action)
-                RL.store_transition(observation, action, reward, observation_)
+            if total_steps > MEMORY_SIZE:
+                RL.learn()
 
-                if total_steps > MEMORY_SIZE:
-                    RL.learn()
+            if RL.epsilon > 0.9:
+                print('single step reward:', reward)
 
-                observation = observation_
-                total_steps += 1
+            observation = observation_
+            total_steps += 1
 
-                if isterminal:
-                    print('episode ', i_episode, ' finished')
-                    steps.append(total_steps)
-                    episodes.append(i_episode)
-                    break
+            ep_reward += reward
+
+            if isterminal:
+                print('Episode:', i_episode, ' Steps: %2d' % j, ' Reward: %7.2f' % ep_reward, 'Explore: %.3f' % RL.epsilon)
+                steps.append(j)
+                episodes.append(i_episode)
+                break
+
+            j = j + 1
+            
+    RL.plot_cost()
                    
     return np.vstack((episodes, steps))
 
 his_prio = train(RL_prio)
-his_natural = train(RL_natural)
+#his_natural = train(RL_natural)
 
 # compare based on first success
-plt.plot(his_natural[0, :], his_natural[1, :] - his_natural[1, 0], c='b', label='natural DQN')
-plt.plot(his_prio[0, :], his_prio[1, :] - his_prio[1, 0], c='r', label='DQN with prioritized replay')
+#plt.plot(his_natural[0, :], his_natural[1, :] - his_natural[1, 0], c='b', label='natural DQN')
+plt.plot(his_prio[0, :], his_prio[1, :], c='r', label='DQN with prioritized replay')
 plt.legend(loc='best')
 plt.ylabel('total training time')
 plt.xlabel('episode')

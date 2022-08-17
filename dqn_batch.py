@@ -9,7 +9,7 @@ import numpy as np
 import tensorflow as tf
 import networkx as nx
 import random
-
+from batch import Batchgraph
 
 np.random.seed(1)
 inf = 2147483647/2
@@ -166,7 +166,7 @@ class DQNPrioritizedReplay:
         if self.prioritized:
             self.memory = Memory(capacity=memory_size)
         else:
-            self.memory = np.zeros((self.memory_size, 3),dtype = object)
+            self.memory = np.zeros((self.memory_size, 4),dtype = object)
 
         if sess is None:
             self.sess = tf.Session()
@@ -180,13 +180,13 @@ class DQNPrioritizedReplay:
         self.cost_his = []
 
     def _build_net(self):
-        def build_layers(s, adj, c_names, n_l1, w_initializer, b_initializer, trainable):
+        def build_layers(s, adj, mean_matrix, c_names, n_l1, w_initializer, b_initializer, trainable):
             with tf.variable_scope('l_emb'):
                 w_emb = tf.get_variable('w_emb', [self.n_features, self.n_embedding], initializer=w_initializer, collections=c_names,  trainable=trainable)
                 b_emb = tf.get_variable('b_emb', [1, self.n_embedding], initializer=b_initializer, collections=c_names,  trainable=trainable)
                 output = tf.matmul(s,w_emb)
                 embedding_s = tf.nn.relu(tf.matmul(adj, output, a_is_sparse = True) + b_emb)
-                embedding_avg_s = tf.reduce_mean(embedding_s, 0, keepdims = True)
+                embedding_avg_s = tf.matmul(mean_matrix, embedding_s, a_is_sparse = True)
 
             with tf.variable_scope('l1'):
                 w1 = tf.get_variable('w1', [self.n_embedding, n_l1], initializer=w_initializer, collections=c_names, trainable=trainable)
@@ -202,6 +202,7 @@ class DQNPrioritizedReplay:
         # ------------------ build evaluate_net ------------------
         self.s = tf.placeholder(tf.float32, [None, self.n_features], name='s')  # input_state_feature
         self.adj = tf.placeholder(tf.float32, [None, None], name='adj')  # input_adj_matrix
+        self.mean_matrix = tf.placeholder(tf.float32, [None, None], name='mean_m')  # input_adj_matrix
         self.q_target = tf.placeholder(tf.float32, [None, self.n_actions], name='Q_target')  # for calculating loss
         if self.prioritized:
             self.ISWeights = tf.placeholder(tf.float32, [None, 1], name='IS_weights')
@@ -210,7 +211,7 @@ class DQNPrioritizedReplay:
                 ['eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES], 20, \
                 tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1)  # config of layers
 
-            self.q_eval = build_layers(self.s, self.adj, c_names, n_l1, w_initializer, b_initializer, True)
+            self.q_eval = build_layers(self.s, self.adj, self.mean_matrix, c_names, n_l1, w_initializer, b_initializer, True)
 
         with tf.variable_scope('loss'):
             if self.prioritized:
@@ -224,14 +225,16 @@ class DQNPrioritizedReplay:
         # ------------------ build target_net ------------------
         self.s_ = tf.placeholder(tf.float32, [None, self.n_features], name='s_')    # input
         self.adj_ = tf.placeholder(tf.float32, [None, None], name='adj_')  # input_adj_matrix
+        self.mean_matrix_ = tf.placeholder(tf.float32, [None, None], name='mean_m_')  # input_adj_matrix
         with tf.variable_scope('target_net'):
             c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
-            self.q_next = build_layers(self.s_, self.adj_, c_names, n_l1, w_initializer, b_initializer, False)
+            self.q_next = build_layers(self.s_, self.adj_, self.mean_matrix_, c_names, n_l1, w_initializer, b_initializer, False)
 
     def store_transition(self, s, a, r, s_):
         transition = []
         transition.append(s)
-        transition.append([a, r])
+        transition.append(a)
+        transition.append(r)
         transition.append(s_)
         transitionn = np.array(transition, dtype=object)
         if self.prioritized:    # prioritized replay
@@ -265,8 +268,9 @@ class DQNPrioritizedReplay:
         remain_node = graph.nodes() #obtain the avaiable node of the residual net
         state_feature = np.transpose(np.matrix(list(nx.get_node_attributes(graph,'weight').values())))# feature matrix of the residual net
         adj = self.laplacian_matrix_sys_normalized(graph)
+        mean_matrix = np.ones((1,len(remain_node)))/len(remain_node)
         if np.random.uniform() < self.epsilon:
-            actions_value = self.sess.run(self.q_eval, feed_dict={self.s: state_feature, self.adj: adj})
+            actions_value = self.sess.run(self.q_eval, feed_dict={self.s: state_feature, self.adj: adj, self.mean_matrix: mean_matrix})
             for node in steps:
                 actions_value[0][node] = -inf
             action = np.argmax(actions_value)
@@ -286,43 +290,40 @@ class DQNPrioritizedReplay:
             batch_memory = self.memory[sample_index, :]
 
         batch_s = batch_memory[:, 0]
-        batch_s_ = batch_memory[:,2]
-        cost = 0
-        for i in range(self.batch_size):
-            s = batch_s[i]
-            s_ = batch_s_[i]
-            state_feature = np.transpose(np.matrix((list(nx.get_node_attributes(s,'weight').values()))))
-            state_feature_ = np.transpose(np.matrix(list(nx.get_node_attributes(s_,'weight').values())))
-            adj = self.laplacian_matrix_sys_normalized(s)
-            adj_ = self.laplacian_matrix_sys_normalized(s_)
+        batch_s_ = batch_memory[:, 3]
+    
+        ba_s = Batchgraph(self.batch_size, batch_s)
+        batched_adj, batched_feature, mean_matrix = ba_s.batched_graph()
+        ba_s_ = Batchgraph(self.batch_size, batch_s_)
+        batched_adj_, batched_feature_, mean_matrix_ = ba_s_.batched_graph()
+    
+        q_next, q_eval = self.sess.run(
+                [self.q_next, self.q_eval],
+                feed_dict={self.s_: batched_feature_, self.adj_: batched_adj_, self.mean_matrix_: mean_matrix_,
+                        self.s: batched_feature, self.adj: batched_adj, self.mean_matrix: mean_matrix})
 
-            q_next, q_eval = self.sess.run(
-                    [self.q_next, self.q_eval],
-                    feed_dict={self.s_: state_feature_, self.adj_: adj_, 
-                            self.s: state_feature, self.adj: adj})
+        q_target = q_eval.copy()
+        batch_index = np.arange(self.batch_size, dtype=np.int32)
+        eval_act_index = batch_memory[:, 1].astype(int)
+        reward = batch_memory[:, 2].astype(int)
 
-            q_target = q_eval.copy()
-            #batch_index = np.arange(self.batch_size, dtype=np.int32)
-            eval_act_index = batch_memory[i,1][0]
-            reward = batch_memory[i,1][1]
+        q_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
 
-            q_target[0][eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
+        if self.prioritized:
+            _, abs_errors, self.cost = self.sess.run([self._train_op, self.abs_errors, self.loss],
+                                        feed_dict={self.s: batched_feature,
+                                                    self.adj: batched_adj,
+                                                    self.mean_matrix: mean_matrix,
+                                                    self.q_target: q_target,
+                                                    self.ISWeights: ISWeights})
+        else:
+            _, self.cost = self.sess.run([self._train_op, self.loss],
+                                        feed_dict={self.s: batched_feature,
+                                                    self.adj: batched_adj,
+                                                    self.mean_matrix: mean_matrix,
+                                                    self.q_target: q_target})
 
-            if self.prioritized:
-                _, abs_errors, self.cost = self.sess.run([self._train_op, self.abs_errors, self.loss],
-                                            feed_dict={self.s: state_feature,
-                                                        self.adj: adj,
-                                                        self.q_target: q_target,
-                                                        self.ISWeights: ISWeights})
-            else:
-                _, self.cost = self.sess.run([self._train_op, self.loss],
-                                            feed_dict={self.s: state_feature,
-                                                        self.adj: adj,
-                                                        self.q_target: q_target})
-            cost  = cost + self.cost
-        #print('loss is %7.2f' % cost)
-
-        self.cost_his.append(cost)
+        self.cost_his.append(self.cost)
 
         if self.prioritized:
             self.memory.batch_update(tree_idx, abs_errors)     # update priority

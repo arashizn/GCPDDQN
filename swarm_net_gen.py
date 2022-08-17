@@ -22,6 +22,7 @@ class GraphGen(object):
 
 
     def gen_graph(self, num):
+        #num = random.randint(num_min, num_max) 
         if self.g_type == 'small-world':
             g = nx.connected_watts_strogatz_graph(n=num, k=8, p=0.1)
         elif self.g_type == 'barabasi_albert':

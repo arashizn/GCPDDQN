@@ -10,7 +10,6 @@ import tensorflow as tf
 import networkx as nx
 import random
 
-
 np.random.seed(1)
 inf = 2147483647/2
 
@@ -131,7 +130,7 @@ class DQNPrioritizedReplay:
             n_actions,
             n_features,
             n_embedding,
-            learning_rate=0.001,
+            learning_rate=0.005,
             reward_decay=0.9,
             e_greedy=0.9,
             replace_target_iter=500,
@@ -152,7 +151,7 @@ class DQNPrioritizedReplay:
         self.memory_size = memory_size
         self.batch_size = batch_size
         self.epsilon_increment = e_greedy_increment
-        self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max
+        self.epsilon = 0 if e_greedy_increment is None else self.epsilon_max
 
         self.prioritized = prioritized    # decide to use double q or not
 
@@ -186,7 +185,7 @@ class DQNPrioritizedReplay:
                 b_emb = tf.get_variable('b_emb', [1, self.n_embedding], initializer=b_initializer, collections=c_names,  trainable=trainable)
                 output = tf.matmul(s,w_emb)
                 embedding_s = tf.nn.relu(tf.matmul(adj, output, a_is_sparse = True) + b_emb)
-                embedding_avg_s = tf.reduce_mean(embedding_s, 0, keepdims = True)
+                embedding_avg_s = tf.expand_dims(tf.reduce_mean(embedding_s, 0),0)
 
             with tf.variable_scope('l1'):
                 w1 = tf.get_variable('w1', [self.n_embedding, n_l1], initializer=w_initializer, collections=c_names, trainable=trainable)
@@ -245,8 +244,18 @@ class DQNPrioritizedReplay:
             self.memory[index, :] = transitionn
             self.memory_counter += 1
 
-    def laplacian_matrix_sys_normalized(self, s):
-        adj_matrix = np.array(nx.adjacency_matrix(s).todense())
+    def adjacent_matrix(self, g):
+        
+        node_num = self.n_actions
+        m = np.zeros(shape=(node_num, node_num), dtype=int)
+        for u, v in g.edges():
+            m[u,v] = g.edges[u,v]['weight']
+            m[v,u] = g.edges[u,v]['weight']
+        return m
+
+    def laplacian_martix_sys_normalized(self, s):
+        #adj_matrix = np.array(nx.adjacency_matrix(s).todense())
+        adj_matrix = self.adjacent_matrix(s)
         #compute L=D^-0.5 * (A+I) * D^-0.5
         adj_matrix = adj_matrix + np.eye(adj_matrix.shape[0])
 
@@ -254,7 +263,6 @@ class DQNPrioritizedReplay:
         factor = np.ones(adj_matrix.shape[1])
         degree = np.dot(exist, factor)
 
-        #degree = np.array(adj_matrix.sum(1))
         d_hat = np.diag(np.power(degree, -0.5).flatten())
         norm_adj = d_hat.dot(adj_matrix).dot(d_hat)
         return norm_adj
@@ -264,7 +272,7 @@ class DQNPrioritizedReplay:
         graph = observation.copy()
         remain_node = graph.nodes() #obtain the avaiable node of the residual net
         state_feature = np.transpose(np.matrix(list(nx.get_node_attributes(graph,'weight').values())))# feature matrix of the residual net
-        adj = self.laplacian_matrix_sys_normalized(graph)
+        adj = self.laplacian_martix_sys_normalized(graph)
         if np.random.uniform() < self.epsilon:
             actions_value = self.sess.run(self.q_eval, feed_dict={self.s: state_feature, self.adj: adj})
             for node in steps:
@@ -288,13 +296,17 @@ class DQNPrioritizedReplay:
         batch_s = batch_memory[:, 0]
         batch_s_ = batch_memory[:,2]
         cost = 0
+        
         for i in range(self.batch_size):
             s = batch_s[i]
             s_ = batch_s_[i]
-            state_feature = np.transpose(np.matrix((list(nx.get_node_attributes(s,'weight').values()))))
+            state_feature = np.zeros(self.n_actions, dtype=int)
+            node_feature = nx.get_node_attributes(s,'weight')
+            state_feature[node_feature.keys()] = node_feature.values()
+            np.transpose(np.matrix((list(nx.get_node_attributes(s,'weight').values()))))
             state_feature_ = np.transpose(np.matrix(list(nx.get_node_attributes(s_,'weight').values())))
-            adj = self.laplacian_matrix_sys_normalized(s)
-            adj_ = self.laplacian_matrix_sys_normalized(s_)
+            adj = self.laplacian_martix_sys_normalized(s)
+            adj_ = self.laplacian_martix_sys_normalized(s_)
 
             q_next, q_eval = self.sess.run(
                     [self.q_next, self.q_eval],
@@ -320,7 +332,6 @@ class DQNPrioritizedReplay:
                                                         self.adj: adj,
                                                         self.q_target: q_target})
             cost  = cost + self.cost
-        #print('loss is %7.2f' % cost)
 
         self.cost_his.append(cost)
 
