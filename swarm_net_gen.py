@@ -50,13 +50,13 @@ class GraphGen(object):
         nx.set_edge_attributes(g, weight_edge, 'weight')
         return g
 
-    def gen_new_graphs(self, num):
+    def gen_new_graphs(self, node_num, graph_num, is_test):
         print('\ngenerating new training graphs...')
         sys.stdout.flush()
         self.ClearTrainGraphs()
-        for i in tqdm(range(1000)):
-            g = self.gen_graph(num)
-            self.insertgraph(g, is_test=False)
+        for i in tqdm(range(graph_num)):
+            g = self.gen_graph(node_num)
+            self.insertgraph(g, is_test=is_test)
     
     def insertgraph(self,g,is_test):
         if is_test:

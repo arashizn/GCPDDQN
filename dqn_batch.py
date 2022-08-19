@@ -257,7 +257,6 @@ class DQNPrioritizedReplay:
         factor = np.ones(adj_matrix.shape[1])
         degree = np.dot(exist, factor)
 
-        #degree = np.array(adj_matrix.sum(1))
         d_hat = np.diag(np.power(degree, -0.5).flatten())
         norm_adj = d_hat.dot(adj_matrix).dot(d_hat)
         return norm_adj

@@ -15,9 +15,10 @@ class UAVSEnv(object):
         self.state_seq.clear()
         self.act_seq.clear()
         self.reward_seq.clear()
+        self.state_init = graph_init
         return graph_init
 
-    def step(self, state_init, state, act_node):
+    def step(self, state, act_node):
         net = state.copy()
         self.state_seq.append(net)
         self.act_seq.append(act_node)
@@ -25,19 +26,19 @@ class UAVSEnv(object):
         residual_net = net.copy()
         reward = self.getreward(state, residual_net)
         self.reward_seq.append(reward)
-        if self.isterminal(state_init, residual_net):
+        if self.isterminal(residual_net):
             return reward, residual_net, True
         else:
             return reward, residual_net, False
 
 
-    def isterminal(self, state_init, state):
+    def isterminal(self, state):
         # edges_remain = state.edges()
         # if len(edges_remain)==0:
         #     return True
         # else:
         #     return False
-        si = self.COOPScore(state_init)
+        si = self.COOPScore(self.state_init)
         assert si != 0
         s = self.COOPScore(state)
         if (s/si < 0.1):
