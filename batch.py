@@ -35,7 +35,7 @@ class Batchgraph(object):
             graph = self.batch_graph[i]
             node_num = len(graph.nodes())
             subnum.append(node_num)
-            graph_feature = np.transpose(np.matrix((list(nx.get_node_attributes(graph,'weight').values()))))
+            graph_feature = np.transpose(np.matrix(list(nx.get_node_attributes(graph,'weight').values())))
             adj = np.array(nx.adjacency_matrix(graph).todense())
 
             batched_adj = self.Concat(batched_adj, adj)

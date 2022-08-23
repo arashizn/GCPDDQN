@@ -1,6 +1,7 @@
 import networkx as nx
 import numpy as np
 from batch import Batchgraph
+import matplotlib.pyplot as plt
 
 state_s = []
 st = np.zeros((2,3))
@@ -28,7 +29,8 @@ state_s.append(g1)
 
 g2 = g.copy()
 g2.remove_node(0)
-g2.remove_node(3)
+g2.remove_node(7)
+g2.remove_node(5)
 state_s.append(g2)
 
 # g3 = g.copy()
@@ -43,20 +45,33 @@ state_s.append(g2)
 # print(nx.get_edge_attributes(g,'weight'))
 # print(nx.get_edge_attributes(g,'weight'))
 #print(batch_graph)
+plt.subplot(211)
 node = [node for (node, val) in g2.degree()]
 degree = [val for (node, val) in g2.degree()]
-c= g2.degree()
-a,b = zip(*c)
-index = degree.index(max(degree))
-action = node[index]
-print(a)
-print(b)
-print(g2.degree())
-print(index)
-print(action)
-# print(weight.get)
-# print(max(weight,key=weight.get))
+nx.draw_networkx(g2, with_labels=True)
 
+# c= g2.degree()
+# a,b = zip(*c)
+# index = degree.index(max(degree))
+# action = node[index]
+# print(a)
+# print(b)
+# print(g2.degree())
+# print(index)
+# print(action)
+# # print(weight.get)
+# # print(max(weight,key=weight.get))
+# print(nx.get_node_attributes(g,'weight').values())
+
+i = 3
+for sub in nx.connected_components(g2):
+    plt.subplot(2, 2, i)
+    subgraph = g2.subgraph(sub)
+    nx.draw_networkx(subgraph, with_labels=True)
+    i = i + 1
+#print(g2.subgraph(sub))
+
+plt.show()
 
 
 

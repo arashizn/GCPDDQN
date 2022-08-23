@@ -151,7 +151,7 @@ class DQNPrioritizedReplay:
         self.memory_size = memory_size
         self.batch_size = batch_size
         self.epsilon_increment = e_greedy_increment
-        self.epsilon = 0 if e_greedy_increment is None else self.epsilon_max
+        self.epsilon = 0 if not e_greedy_increment is None else self.epsilon_max
 
         self.prioritized = prioritized    # decide to use double q or not
 
@@ -265,14 +265,18 @@ class DQNPrioritizedReplay:
 
         d_hat = np.diag(np.power(degree, -0.5).flatten())
         norm_adj = d_hat.dot(adj_matrix).dot(d_hat)
-        return norm_adj
+        return norm_adj, degree
 
 
     def choose_action(self, observation, steps):
         graph = observation.copy()
         remain_node = graph.nodes() #obtain the avaiable node of the residual net
-        state_feature = np.transpose(np.matrix(list(nx.get_node_attributes(graph,'weight').values())))# feature matrix of the residual net
-        adj = self.laplacian_martix_sys_normalized(graph)
+        state_feature = np.zeros(shape = (self.n_actions, self.n_features))
+        adj, degree= self.laplacian_martix_sys_normalized(graph)
+        temp = nx.get_node_attributes(graph,'weight')
+        for u in temp.keys():
+            state_feature[u, 0] = temp[u]# feature matrix of the residual net
+            state_feature[u, 1] = degree[u]
         if np.random.uniform() < self.epsilon:
             actions_value = self.sess.run(self.q_eval, feed_dict={self.s: state_feature, self.adj: adj})
             for node in steps:
@@ -300,13 +304,18 @@ class DQNPrioritizedReplay:
         for i in range(self.batch_size):
             s = batch_s[i]
             s_ = batch_s_[i]
-            state_feature = np.zeros(self.n_actions, dtype=int)
-            node_feature = nx.get_node_attributes(s,'weight')
-            state_feature[node_feature.keys()] = node_feature.values()
-            np.transpose(np.matrix((list(nx.get_node_attributes(s,'weight').values()))))
-            state_feature_ = np.transpose(np.matrix(list(nx.get_node_attributes(s_,'weight').values())))
-            adj = self.laplacian_martix_sys_normalized(s)
-            adj_ = self.laplacian_martix_sys_normalized(s_)
+            state_feature = np.zeros(shape = (self.n_actions, self.n_features))
+            adj, degree= self.laplacian_martix_sys_normalized(s)
+            temp = nx.get_node_attributes(s,'weight')
+            for u in temp.keys():
+                state_feature[u, 0] = temp[u]# feature matrix of the residual net
+                state_feature[u, 1] = degree[u]
+            state_feature_ = np.zeros(shape = (self.n_actions, self.n_features))
+            adj_, degree_= self.laplacian_martix_sys_normalized(s_)
+            temp = nx.get_node_attributes(s_,'weight')
+            for u in temp.keys():
+                state_feature_[u, 0] = temp[u]# feature matrix of the residual net
+                state_feature_[u, 1] = degree_[u]   
 
             q_next, q_eval = self.sess.run(
                     [self.q_next, self.q_eval],

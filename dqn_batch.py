@@ -265,7 +265,7 @@ class DQNPrioritizedReplay:
     def choose_action(self, observation, steps):
         graph = observation.copy()
         remain_node = graph.nodes() #obtain the avaiable node of the residual net
-        state_feature = np.transpose(np.matrix(list(nx.get_node_attributes(graph,'weight').values())))# feature matrix of the residual net
+        state_feature = np.transpose(nx.get_node_attributes(graph,'weight').values())# feature matrix of the residual net
         adj = self.laplacian_matrix_sys_normalized(graph)
         mean_matrix = np.ones((1,len(remain_node)))/len(remain_node)
         if np.random.uniform() < self.epsilon:

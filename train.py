@@ -15,10 +15,10 @@ import numpy as np
 from Comparemethod import Choosemethod
 
 
-UAV_NUM = 30
-MEMORY_SIZE = 5000
+UAV_NUM = 50
+MEMORY_SIZE = 20000
 EMBEDDING_SIZE = 32
-EPISODE = 1000
+EPISODE = 1500
 
 env = UAVSEnv()
 graphgen = GraphGen()
@@ -33,7 +33,7 @@ with tf.variable_scope('natural_DQN'):
 with tf.variable_scope('DQN_with_prioritized_replay'):
     RL_prio = DQNPrioritizedReplay(
         n_actions=UAV_NUM, n_features=1, n_embedding = EMBEDDING_SIZE, memory_size=MEMORY_SIZE,
-        e_greedy_increment=0.0001, sess=sess, prioritized=True, output_graph=True,
+        e_greedy_increment=0.00005, sess=sess, prioritized=True, output_graph=True,
     )
 sess.run(tf.global_variables_initializer())
 
@@ -135,6 +135,15 @@ plt.plot(np.arange(100), test_rl[0, :],c = 'b')
 plt.legend(['degree','weight','rl'], loc='best')
 plt.ylabel('graph')
 plt.xlabel('step')
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(100), test_degree[1, :]/test_degree[0, :],c = 'r')
+plt.plot(np.arange(100), test_weight[1, :]/test_weight[0, :],c = 'g')
+plt.plot(np.arange(100), test_rl[1, :]/test_rl[0, :],c = 'b')
+plt.legend(['degree','weight','rl'], loc='best')
+plt.ylabel('graph')
+plt.xlabel('mean_reward')
 plt.grid()
 plt.show()
 

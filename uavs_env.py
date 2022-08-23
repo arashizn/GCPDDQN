@@ -47,11 +47,12 @@ class UAVSEnv(object):
             return False
 
     def getreward(self, net, residual_net):
-        net = net.copy()
-        residual_net = residual_net.copy()
+        #si = self.COOPScore(self.state_init)
         net_score = self.COOPScore(net)
         residual_net_score = self.COOPScore(residual_net)
         reward = net_score - residual_net_score
+        if not self.isterminal(residual_net):
+            reward = reward - 100
         return reward
 
     def COOPScore(self, net):
