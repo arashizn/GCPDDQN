@@ -25,7 +25,7 @@ class Batchgraph(object):
         #degree = np.array(adj_matrix.sum(1))
         d_hat = np.diag(np.power(degree, -0.5).flatten())
         norm_adj = d_hat.dot(adj_matrix).dot(d_hat)
-        return norm_adj
+        return norm_adj, degree
         
     def batched_graph(self):
         batched_adj = np.empty((0,0))
@@ -35,15 +35,17 @@ class Batchgraph(object):
             graph = self.batch_graph[i]
             node_num = len(graph.nodes())
             subnum.append(node_num)
-            graph_feature = np.transpose(np.matrix(list(nx.get_node_attributes(graph,'weight').values())))
             adj = np.array(nx.adjacency_matrix(graph).todense())
 
+            graph_feature = np.transpose(np.matrix(list(nx.get_node_attributes(graph,'weight').values())))           
             batched_adj = self.Concat(batched_adj, adj)
             batched_feature = np.vstack([batched_feature, graph_feature])
-        batched_la_adj = self.laplacian_martix(batched_adj)
-        mean_matrix = self.mean_matrix(subnum)
 
-        return batched_la_adj, batched_feature,mean_matrix
+        batched_la_adj, batched_degree = self.laplacian_martix(batched_adj)
+        mean_matrix = self.mean_matrix(subnum)
+        degree_feature = np.transpose((np.matrix(batched_degree)) /(max(batched_degree)))
+        feature = np.hstack((batched_feature, degree_feature))
+        return batched_la_adj, feature, mean_matrix
     
     def mean_matrix(self, subnum):
         node_sum = sum(subnum)

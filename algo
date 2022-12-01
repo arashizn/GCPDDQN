@@ -1,0 +1,37 @@
+
+\begin{algorithm}[htb] 
+	\caption{Graph Convolution Prioritized Double Deep Q-learning Algorithm} 
+	\label{SA} 
+	\begin{algorithmic}[1] %这个1 表示每一行都显示数字
+		\REQUIRE~~\\ %算法的输入参数：Input
+		init graph $\mathit{G^0(V,E)}$, batch size $\mathcal{B}$, reward decay $\gamma$, memory size $\mathcal{M}$, training episode $\mathit{Ep}$, target netwrok replace freq $\mathcal{N}$; \\
+		\ENSURE~~\\ %算法的输出：Output
+		a sequence of removal node $sp=\mathit{\{idx_1,idx_2,...,idx_k\}}$;
+		\renewcommand{\algorithmicensure}{ \textbf{Initialization:}}
+		\ENSURE~~\\ %算法的输出：Output
+		structure and parameter of GCN $\mathcal{N}et^G$, $\mathit{w}$ and prioritized DQN network $\mathcal{N}et^Q$, $\mathit{\theta}$, target network $\mathit{\theta^t}\leftarrow\mathit{\theta}$, replay buffer $\mathcal{D}$ with size $\mathcal{M}$;
+		\FOR{episode $=1:\mathit{Ep}$}
+		\STATE count = 0, greedy factor $\epsilon=0$, priority $\mathit{p_1}=1$;
+		\STATE initial state $\mathit{s_0} \leftarrow \mathit{G^0(V,E)}$, $\mathit{sp}\leftarrow\{\}$;
+		\WHILE{True}
+		\STATE step $\mathit{t}$ = 0;
+		\IF{count $<\mathcal{M}$}
+		\STATE Randomly choose action $\mathit{a_t}\in g^t_{max}$;
+		\STATE Remove node $\mathit{a_t}$ from $G^t(V,E)$, get reward $r_t$ and $s_{t+1}\leftarrow G^{t+1}(V,E)$; store transition $\mathit{(s_t,a_t,r_t,s_{t+1})}$ into replay buffer $\mathcal{D}$ with priority $p_t$;
+		\label{yuju1}
+		\STATE count = count + 1;
+		\ELSE
+		\STATE $s_t\leftarrow\mathit{G^t(V,E)}$, $H'=\mathcal{N}et^G(Adj,H;w)$, graph embedding $H'\rightarrow H_{emb}$;
+		\STATE Choose action $a_t$ with $\epsilon$, where $\mathit{a_t}\leftarrow idx_t=argmax_{a\in g^t_{max}} \mathcal{N}et^Q(H_{emb};\theta)$, repeat (\ref{yuju1});
+		\STATE Do prioritized batch $\mathcal{B}$ samples $\mathit{(s_i,a_i,r_i,s_{i+1})}$ from $\mathcal{D}$ and reorganize into one graph $\mathit{G^B(V,E)}$ ;
+		\STATE Set $y_i=r_i+\gamma \max \mathcal{N}et^Q(H^B_{emb};\theta)$;
+		\STATE Update parameter $\mathit{w}\leftarrow\mathit{w'}$ and $\mathit{\theta}\leftarrow\mathit{\theta'}$ using gradient descent, $\epsilon\leftarrow \epsilon',$, update $\mathit{p_t}\leftarrow\mathit{p_t}'$;
+		\STATE Replace target parameter $\mathit{\theta^t}$ every $\mathcal{N}$ steps;
+		\ENDIF
+		\STATE $sp$ append $idx_t$;
+ 		\STATE Update $\mathit{s_t\leftarrow s_{t+1}}$, $\mathit{t\leftarrow t+1}$;
+ 		\STATE Break when is terminal;
+		\ENDWHILE
+		\ENDFOR
+	\end{algorithmic}
+\end{algorithm}

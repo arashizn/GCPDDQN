@@ -7,13 +7,13 @@ from tqdm import tqdm
 import random
 import math
 
-DISTANCE_MIN = 5
-DISTANCE_MAX = 20
-DISTANCE_OPTIMAL = 10
+DISTANCE_MIN = 50
+DISTANCE_MAX = 200
+DISTANCE_OPTIMAL = 100
 
 class GraphGen(object): 
-    def __init__(self):
-        self.g_type = 'barabasi_albert'
+    def __init__(self, g_type):
+        self.g_type = g_type
         self.ngraph_train = 0
         self.ngraph_test = 0
         self.training_type = 'random'   #'degree'
@@ -24,9 +24,9 @@ class GraphGen(object):
     def gen_graph(self, num):
         #num = random.randint(num_min, num_max) 
         if self.g_type == 'small-world':
-            g = nx.connected_watts_strogatz_graph(n=num, k=8, p=0.1)
+            g = nx.connected_watts_strogatz_graph(n=num, k=6, p=0.2)
         elif self.g_type == 'barabasi_albert':
-            g = nx.barabasi_albert_graph(n=num, m=4)
+            g = nx.barabasi_albert_graph(n=num, m=3)
 
         weight_node = {}
         if self.training_type == 'random':
@@ -45,15 +45,20 @@ class GraphGen(object):
             if distance_edge <= DISTANCE_OPTIMAL:
                 weight_edge[u, v] = 1
             else:
-                weight_edge[u, v] = math.exp(-((distance_edge - DISTANCE_OPTIMAL)/5)) #weight of edge according to the distance between uav nodes
+                weight_edge[u, v] = math.exp(-((distance_edge - DISTANCE_OPTIMAL)/50)) #weight of edge according to the distance between uav nodes
         nx.set_node_attributes(g, weight_node, 'weight')
         nx.set_edge_attributes(g, weight_edge, 'weight')
         return g
 
     def gen_new_graphs(self, node_num, graph_num, is_test):
-        print('\ngenerating new training graphs...')
         sys.stdout.flush()
-        self.ClearTrainGraphs()
+        if is_test:
+            self.ClearTestGraphs()
+            print('\ngenerating new testing graphs...')
+        else:
+            self.ClearTrainGraphs()
+            print('\ngenerating new training graphs...')
+        sys.stdout.flush()
         for i in tqdm(range(graph_num)):
             g = self.gen_graph(node_num)
             self.insertgraph(g, is_test=is_test)

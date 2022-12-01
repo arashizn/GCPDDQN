@@ -131,7 +131,7 @@ class DQNPrioritizedReplay:
             n_features,
             n_embedding,
             learning_rate=0.005,
-            reward_decay=0.9,
+            reward_decay=0.5,
             e_greedy=0.9,
             replace_target_iter=500,
             memory_size=10000,
@@ -163,8 +163,10 @@ class DQNPrioritizedReplay:
         self.replace_target_op = [tf.assign(t, e) for t, e in zip(t_params, e_params)]
 
         if self.prioritized:
+            self.method = 'pri_dqn'
             self.memory = Memory(capacity=memory_size)
         else:
+            self.method = 'dqn'
             self.memory = np.zeros((self.memory_size, 3),dtype = object)
 
         if sess is None:

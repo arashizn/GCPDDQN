@@ -13,5 +13,13 @@ class Choosemethod(object):
         elif self.method == 'weight':
             weight = nx.get_node_attributes(state,'weight')
             action = max(weight, key=weight.get)
-
+        elif self.method == 'betweenness':
+            betweenness = nx.betweenness_centrality(state)
+            action = max(betweenness, key=betweenness.get)
+        elif self.method == 'closeness':
+            closeness = nx.closeness_centrality(state)
+            action = max(closeness, key=closeness.get)
+        elif self.method == 'eigenvector':
+            eigenvector = nx.eigenvector_centrality(state)
+            action = max(eigenvector, key=eigenvector.get)
         return action

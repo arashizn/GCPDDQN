@@ -131,7 +131,7 @@ class DQNPrioritizedReplay:
             n_actions,
             n_features,
             n_embedding,
-            learning_rate=0.001,
+            learning_rate=0.0005,
             reward_decay=0.9,
             e_greedy=0.9,
             replace_target_iter=500,
@@ -164,8 +164,10 @@ class DQNPrioritizedReplay:
         self.replace_target_op = [tf.assign(t, e) for t, e in zip(t_params, e_params)]
 
         if self.prioritized:
+            self.method = 'pri_dqn'
             self.memory = Memory(capacity=memory_size)
         else:
+            self.method = 'dqn'
             self.memory = np.zeros((self.memory_size, 3),dtype = object)
 
         if sess is None:
@@ -264,10 +266,11 @@ class DQNPrioritizedReplay:
         remain_node = graph.nodes() #obtain the avaiable node of the residual net
 
         adj, degree = self.laplacian_matrix_sys_normalized(graph)
-        # state_feature_w = np.transpose(np.matrix(list(nx.get_node_attributes(graph,'weight').values())))# feature matrix of the residual net
-        # state_feature_d = np.transpose((np.matrix(degree) - min(degree))/(max(degree) - min(degree)))
-        # state_feature = np.hstack((state_feature_w, state_feature_d))
-        state_feature = np.transpose((np.matrix(degree) - min(degree))/(max(degree) - min(degree)))#使用度作为特征
+        state_feature_w = np.transpose(np.matrix(list(nx.get_node_attributes(graph,'weight').values())))# feature matrix of the residual net
+        state_feature_d = np.transpose((np.matrix(degree)) /(max(degree)))
+        state_feature = np.hstack((state_feature_w, state_feature_d))
+        # state_feature = np.transpose((np.matrix(degree) - min(degree))/(max(degree) - min(degree)))#使用度作为特征
+        # state_feature = np.transpose(np.matrix(list(nx.get_node_attributes(graph,'weight').values())))
 
         if np.random.uniform() < self.epsilon:
             actions_value = self.sess.run(self.q_eval, feed_dict={self.s: state_feature, self.adj: adj})
@@ -297,14 +300,17 @@ class DQNPrioritizedReplay:
             s_ = batch_s_[i]
             adj, degree = self.laplacian_matrix_sys_normalized(s)
             adj_, degree_ = self.laplacian_matrix_sys_normalized(s_)
-            # state_feature_w = np.transpose(np.matrix(list(nx.get_node_attributes(s,'weight').values())))
-            # state_feature_d = np.transpose((np.matrix(degree) - min(degree))/(max(degree) - min(degree)))
-            # state_feature = np.hstack((state_feature_w, state_feature_d))
-            # state_feature_w_ = np.transpose(np.matrix(list(nx.get_node_attributes(s_,'weight').values())))
-            # state_feature_d_ = np.transpose((np.matrix(degree_) - min(degree_))/(max(degree_) - min(degree_)))
-            # state_feature_ = np.hstack((state_feature_w_, state_feature_d_))
-            state_feature = np.transpose((np.matrix(degree) - min(degree))/(max(degree) - min(degree)))
-            state_feature_ = np.transpose((np.matrix(degree_) - min(degree_))/(max(degree_) - min(degree_)))
+            state_feature_w = np.transpose(np.matrix(list(nx.get_node_attributes(s,'weight').values())))
+            state_feature_d = np.transpose((np.matrix(degree)) /(max(degree)))
+            state_feature = np.hstack((state_feature_w, state_feature_d))
+            state_feature_w_ = np.transpose(np.matrix(list(nx.get_node_attributes(s_,'weight').values())))
+            state_feature_d_ = np.transpose((np.matrix(degree_)) /(max(degree_)))
+            state_feature_ = np.hstack((state_feature_w_, state_feature_d_))
+            # state_feature = np.transpose((np.matrix(degree) - min(degree))/(max(degree) - min(degree)))
+            # state_feature_ = np.transpose((np.matrix(degree_) - min(degree_))/(max(degree_) - min(degree_)))
+
+            # state_feature = np.transpose(np.matrix(list(nx.get_node_attributes(s,'weight').values())))
+            # state_feature_ = np.transpose(np.matrix(list(nx.get_node_attributes(s_,'weight').values())))
             q_next, q_eval = self.sess.run(
                     [self.q_next, self.q_eval],
                     feed_dict={self.s_: state_feature_, self.adj_: adj_, 
@@ -343,6 +349,7 @@ class DQNPrioritizedReplay:
 
     def plot_cost(self):
         import matplotlib.pyplot as plt
+        np.savetxt("cost_his.txt", self.cost_his)
         plt.plot(np.arange(len(self.cost_his)), self.cost_his)
         plt.ylabel('Cost')
         plt.xlabel('training steps')

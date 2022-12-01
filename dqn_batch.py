@@ -131,10 +131,10 @@ class DQNPrioritizedReplay:
             n_actions,
             n_features,
             n_embedding,
-            learning_rate=0.001,
-            reward_decay=0.9,
+            learning_rate=0.0005,
+            reward_decay=0.5,
             e_greedy=0.9,
-            replace_target_iter=500,
+            replace_target_iter=1000,
             memory_size=10000,
             batch_size=32,
             e_greedy_increment=None,
@@ -164,8 +164,10 @@ class DQNPrioritizedReplay:
         self.replace_target_op = [tf.assign(t, e) for t, e in zip(t_params, e_params)]
 
         if self.prioritized:
+            self.method = 'pri_dqn'
             self.memory = Memory(capacity=memory_size)
         else:
+            self.method = 'dqn'
             self.memory = np.zeros((self.memory_size, 4),dtype = object)
 
         if sess is None:
@@ -259,14 +261,18 @@ class DQNPrioritizedReplay:
 
         d_hat = np.diag(np.power(degree, -0.5).flatten())
         norm_adj = d_hat.dot(adj_matrix).dot(d_hat)
-        return norm_adj
+        return norm_adj, degree
 
 
     def choose_action(self, observation, steps):
         graph = observation.copy()
         remain_node = graph.nodes() #obtain the avaiable node of the residual net
-        state_feature = np.transpose(nx.get_node_attributes(graph,'weight').values())# feature matrix of the residual net
-        adj = self.laplacian_matrix_sys_normalized(graph)
+        adj, degree = self.laplacian_matrix_sys_normalized(graph)
+        # state_feature = np.transpose(nx.get_node_attributes(graph,'weight').values())# feature matrix of the residual net
+        state_feature_w = np.transpose(np.matrix(list(nx.get_node_attributes(graph,'weight').values())))# feature matrix of the residual net
+        state_feature_d = np.transpose((np.matrix(degree)) /(max(degree)))
+        state_feature = np.hstack((state_feature_w, state_feature_d))
+        
         mean_matrix = np.ones((1,len(remain_node)))/len(remain_node)
         if np.random.uniform() < self.epsilon:
             actions_value = self.sess.run(self.q_eval, feed_dict={self.s: state_feature, self.adj: adj, self.mean_matrix: mean_matrix})
@@ -304,7 +310,7 @@ class DQNPrioritizedReplay:
         q_target = q_eval.copy()
         batch_index = np.arange(self.batch_size, dtype=np.int32)
         eval_act_index = batch_memory[:, 1].astype(int)
-        reward = batch_memory[:, 2].astype(int)
+        reward = batch_memory[:, 2].astype(float)
 
         q_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
 
@@ -334,6 +340,7 @@ class DQNPrioritizedReplay:
 
     def plot_cost(self):
         import matplotlib.pyplot as plt
+        np.savetxt("cost_his.txt", self.cost_his)
         plt.plot(np.arange(len(self.cost_his)), self.cost_his)
         plt.ylabel('Cost')
         plt.xlabel('training steps')
