@@ -18,29 +18,32 @@ import time
 import networkx as nx
 
 
-UAV_NUM = 200
-MEMORY_SIZE = 20000
+UAV_NUM = 150
+MEMORY_SIZE = 10000
 EMBEDDING_SIZE = 32
-EPISODE = 500
-G_TYPE = 'small-world'
+EPISODE = 600
+G_TYPE = 'barabasi_albert'
+
 
 
 
 env = UAVSEnv()
 graphgen = GraphGen(G_TYPE)
+graphgen.gen_new_graphs(UAV_NUM, graph_num=1, is_test=False)
+TrainSet = graphgen.TrainSet
 
 sess = tf.Session()
 
 with tf.variable_scope('natural_DQN'):
     RL_natural = DQNPrioritizedReplay(
         n_actions=UAV_NUM, n_features=2, n_embedding = EMBEDDING_SIZE, memory_size=MEMORY_SIZE,
-        e_greedy_increment=0.00012, sess=sess, prioritized=False,
+        e_greedy_increment=0.000032, sess=sess, prioritized=False,
     )
 
 with tf.variable_scope('DQN_with_prioritized_replay'):
     RL_prio = DQNPrioritizedReplay(
         n_actions=UAV_NUM, n_features=2, n_embedding = EMBEDDING_SIZE, memory_size=MEMORY_SIZE,
-        e_greedy_increment=0.00014, sess=sess, prioritized=True, output_graph=True,
+        e_greedy_increment=0.000042, sess=sess, prioritized=True, output_graph=True,
     )
 saver = tf.train.Saver(max_to_keep=None)   
 sess.run(tf.global_variables_initializer())
@@ -61,7 +64,7 @@ def loadBestModel():
     saver.restore(sess, best_model_path)
     print('restore best model from file successfully')  
 
-# graphgen.gen_new_graphs(UAV_NUM, graph_num=100, is_test=True)
+
 # TestSet = graphgen.TestSet
 def test(Method):
     steps = []
@@ -100,9 +103,9 @@ def test(Method):
     return np.vstack((steps, episode_reward))
 
 # graphgen.gen_new_graphs(UAV_NUM, graph_num=1, is_test=False)
-TrainSet = graphgen.TrainSet
-g = nx.read_gpickle('test50b1.gpickle')
-graphgen.insertgraph(g, is_test=False)
+# TrainSet = graphgen.TrainSet
+# g = nx.read_gpickle('test50b1.gpickle')
+# graphgen.insertgraph(g, is_test=False)
    
 def train(RL):
     save_dir = './models/%s'%(G_TYPE)

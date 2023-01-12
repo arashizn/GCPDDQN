@@ -1,2 +1,2 @@
-model_checkpoint_path: "nrange_50_iter_12393.ckpt"
-all_model_checkpoint_paths: "nrange_50_iter_12393.ckpt"
+model_checkpoint_path: "nrange_150_iter_49887.ckpt"
+all_model_checkpoint_paths: "nrange_150_iter_49887.ckpt"

@@ -187,8 +187,8 @@ class DQNPrioritizedReplay:
                 w_emb = tf.get_variable('w_emb', [self.n_features, self.n_embedding], initializer=w_initializer, collections=c_names,  trainable=trainable)
                 b_emb = tf.get_variable('b_emb', [1, self.n_embedding], initializer=b_initializer, collections=c_names,  trainable=trainable)
                 output = tf.matmul(s,w_emb)
-                embedding_s = tf.nn.relu(tf.matmul(adj, output, a_is_sparse = True) + b_emb)
-                embedding_avg_s = tf.matmul(mean_matrix, embedding_s, a_is_sparse = True)
+                embedding_s = tf.nn.relu(tf.matmul(adj, output) + b_emb)
+                embedding_avg_s = tf.matmul(mean_matrix, embedding_s)
 
             with tf.variable_scope('l1'):
                 w1 = tf.get_variable('w1', [self.n_embedding, n_l1], initializer=w_initializer, collections=c_names, trainable=trainable)

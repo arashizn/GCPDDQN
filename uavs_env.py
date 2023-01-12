@@ -74,8 +74,8 @@ class UAVSEnv(object):
 
         reward = reward2 - reward
 
-        if self.isterminal(residual_net):
-            reward = reward + len(residual_net.nodes())*5
+        # if self.isterminal(residual_net):
+        #     reward = reward + len(residual_net.nodes())*5
         # largest1 = max(nx.connected_components(residual_net),key=len)
         # largest_connected_subgraph1 = residual_net.subgraph(largest1)
         # largest2 = max(nx.connected_components(net),key=len)
